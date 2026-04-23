@@ -1,7 +1,9 @@
 package io.careerops.controller;
 
 import io.careerops.dto.JobScoreRequest;
+import io.careerops.model.Application;
 import io.careerops.model.JobScore;
+import io.careerops.service.JobImportService;
 import io.careerops.service.JobLevelClassifier;
 import io.careerops.service.JobScoringService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +25,7 @@ public class JobController {
 
     private final JobScoringService jobScoringService;
     private final JobLevelClassifier levelClassifier;
+    private final JobImportService jobImportService;
 
     @PostMapping("/score")
     @Operation(summary = "Score a job posting",
@@ -56,5 +59,16 @@ public class JobController {
     @Operation(summary = "Get top sponsored jobs", description = "Returns all scored jobs where H-1B sponsorship is confirmed, ordered by score")
     public ResponseEntity<List<JobScore>> getSponsored() {
         return ResponseEntity.ok(jobScoringService.getSponsoredJobs());
+    }
+
+    @PostMapping("/import-url")
+    @Operation(summary = "AI import a job from URL",
+               description = "Fetches the job page via Apify, extracts details with Claude AI, scores it, and saves to your application tracker automatically.")
+    public ResponseEntity<Application> importFromUrl(@RequestBody Map<String, String> body) {
+        String url = body.get("url");
+        if (url == null || url.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(jobImportService.importFromUrl(url));
     }
 }

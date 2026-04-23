@@ -49,6 +49,12 @@ management:
     health:
       show-details: always
 
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+
+apify:
+  api-token: ${APIFY_API_TOKEN:}
+
 career-ops:
   sponsor-db:
     path: classpath:db/h1b-sponsors.csv

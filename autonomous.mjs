@@ -133,10 +133,9 @@ async function fetchAndScore(page, url) {
     if (/active.*clearance|security clearance|public trust|top secret|ts\/sci|secret clearance/i.test(jdText)) {
       return { score: 1.0, company: '?', role: '?', skipReason: 'Requires security clearance', levelOk: true, url, jdText }
     }
-    const US_STATES = /\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming|remote|united states|usa)\b/i
-    const NON_US = /\b(india|canada|uk|united kingdom|germany|australia|singapore|europe|london|toronto|berlin|bangalore|mumbai|hyderabad|chennai|pune)\b/i
-    if (!US_STATES.test(jdText) || NON_US.test(jdText.slice(0, 500))) {
-      return { score: 1.0, company: '?', role: '?', skipReason: 'Not a US-based role', levelOk: true, url, jdText }
+    const NON_US = /\b(india|canada|united kingdom|germany|australia|singapore|london|toronto|berlin|bangalore|mumbai|hyderabad|chennai|pune|amsterdam|paris|sydney)\b/i
+    if (NON_US.test(jdText.slice(0, 800))) {
+      return { score: 1.0, company: '?', role: '?', skipReason: 'Non-US location', levelOk: true, url, jdText }
     }
 
     // Skill match: count how many of candidate's skills appear in JD
@@ -156,14 +155,14 @@ JOB PAGE TEXT:
 ${jdText.slice(0, 4000)}
 
 SCORING RULES:
-1. APPLY if 50%+ of JD required skills match candidate skills
-2. SKIP (score 1.0) ONLY if JD explicitly says "no sponsorship", "US citizens only", "must be citizen", "no visa". If sponsorship is not mentioned → assume OK, apply
-3. Level/years rules:
-   - Senior/Mid/Junior roles → always OK
-   - Lead/Manager/Staff/Principal → OK if JD requires 6 years or fewer experience
-   - Director/VP/Head of/Executive → always SKIP (score 1.5)
-   - If years required > 7 → SKIP regardless of title
-4. Score 4.0-5.0 if skill match >= 50%. Score 3.0-3.9 if 30-50%. Score < 3.0 if < 30%.
+1. Score based ONLY on skill match — 4.0-5.0 if 50%+, 3.0-3.9 if 30-49%, below 3.0 if under 30%
+2. LOCATION: Candidate can work ONSITE, HYBRID, or REMOTE anywhere in the US. Never penalize for location within US.
+3. SPONSORSHIP: ONLY skip (score 1.0) if JD EXPLICITLY says "will not sponsor", "no sponsorship", "US citizens only", "must be citizen or green card". If sponsorship is not mentioned at all → apply normally, do not penalize.
+4. CLEARANCE: Skip if requires active clearance, public trust, top secret, TS/SCI.
+5. Level rules:
+   - Senior/Mid/Junior/Lead/Manager/Staff → OK if years required <= 6
+   - Director/VP/Head of/Executive → always skip (score 1.5)
+   - Years required > 7 → skip (score 1.5)
 
 Return ONLY valid JSON:
 {

@@ -115,11 +115,10 @@ async function scoreJob(page, url) {
       return { score: 1.0, skipReason: 'Requires security clearance', url }
     }
 
-    // Location filter — must be US-based
-    const US_STATES = /\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming|remote|united states|usa|\b[A-Z]{2}\b)\b/i
-    const NON_US = /\b(india|canada|uk|united kingdom|germany|australia|singapore|europe|london|toronto|berlin|bangalore|mumbai|hyderabad|chennai|pune)\b/i
-    if (!US_STATES.test(jdText) || NON_US.test(jdText.slice(0, 500))) {
-      return { score: 1.0, skipReason: 'Not a US-based role', url }
+    // Location filter — skip only if EXPLICITLY a non-US role
+    const NON_US = /\b(india|canada|united kingdom|germany|australia|singapore|london|toronto|berlin|bangalore|mumbai|hyderabad|chennai|pune|amsterdam|paris|sydney)\b/i
+    if (NON_US.test(jdText.slice(0, 800))) {
+      return { score: 1.0, skipReason: 'Non-US location', url }
     }
 
     const matched = MY_SKILLS.filter(s => jdLower.includes(s))
@@ -132,11 +131,10 @@ CV: ${cvText.slice(0, 1200)}
 JD: ${jdText.slice(0, 3500)}
 
 Rules:
-- Score 4.0-5.0 if 50%+ skills match
-- Score 3.0-3.9 if 30-49% match
-- Score < 3.0 if < 30% match
-- Score 1.0 if JD says no sponsorship / citizens only / requires clearance / top secret / public trust
-- Score 1.0 if role is outside United States
+- Score based ONLY on skill match percentage — 4.0-5.0 if 50%+, 3.0-3.9 if 30-49%, below 3.0 if under 30%
+- Candidate can relocate to ANY US city or state — never penalize for on-site, hybrid, or specific location within US
+- SPONSORSHIP: ONLY score 1.0 if JD EXPLICITLY says "no sponsorship", "will not sponsor", "citizens only", "must be US citizen/PR". If sponsorship is not mentioned at all → score normally and apply
+- Clearance/public trust/top secret → score 1.0
 - Director/VP/Head/Executive → score 1.5
 - Lead/Manager/Staff OK if years required <= 6
 - Years required > 7 → score 1.5

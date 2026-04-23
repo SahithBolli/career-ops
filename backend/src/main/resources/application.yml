@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: career-ops-backend
+
+  profiles:
+    active: dev
+
+  datasource:
+    url: jdbc:h2:mem:careerops;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+    database-platform: org.hibernate.dialect.H2Dialect
+
+  sql:
+    init:
+      mode: always
+
+server:
+  port: 8080
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+career-ops:
+  sponsor-db:
+    path: classpath:db/h1b-sponsors.csv
+  job-level:
+    excluded-titles:
+      - "Lead Engineer"
+      - "Tech Lead"
+      - "Engineering Lead"
+      - "Manager"
+      - "Director"
+      - "VP "
+      - "Vice President"
+      - "Head of"
+      - "Principal Engineer"
+      - "Staff Engineer"
+      - "Distinguished Engineer"
+      - "Chief"
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/careerops}
+    driver-class-name: org.postgresql.Driver
+    username: ${DATABASE_USER:careerops}
+    password: ${DATABASE_PASSWORD:careerops}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  h2:
+    console:
+      enabled: false

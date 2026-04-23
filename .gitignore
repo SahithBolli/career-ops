@@ -41,3 +41,7 @@ bun.lock
 .claude/memory/
 career-dashboard
 package-lock.json
+# Java backend
+backend/target/
+backend/*.class
+backend/.mvn/wrapper/maven-wrapper.jar

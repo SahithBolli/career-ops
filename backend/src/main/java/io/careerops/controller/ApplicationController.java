@@ -9,11 +9,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/applications")
@@ -67,6 +71,42 @@ public class ApplicationController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         applicationService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/resume")
+    @Operation(summary = "Upload tailored resume (Base64 PDF)")
+    public ResponseEntity<Application> uploadResume(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(applicationService.uploadResume(id, body.get("base64"), body.get("fileName")));
+    }
+
+    @GetMapping("/{id}/resume")
+    @Operation(summary = "Download resume PDF")
+    public ResponseEntity<byte[]> downloadResume(@PathVariable Long id) {
+        Application app = applicationService.findById(id);
+        if (app.getResumeBase64() == null) return ResponseEntity.notFound().build();
+        byte[] pdf = Base64.getDecoder().decode(app.getResumeBase64());
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + (app.getResumeFileName() != null ? app.getResumeFileName() : "resume.pdf") + "\"")
+            .contentType(MediaType.APPLICATION_PDF)
+            .body(pdf);
+    }
+
+    @DeleteMapping("/{id}/resume")
+    @Operation(summary = "Delete stored resume")
+    public ResponseEntity<Application> deleteResume(@PathVariable Long id) {
+        return ResponseEntity.ok(applicationService.deleteResume(id));
+    }
+
+    @PostMapping("/{id}/cover")
+    @Operation(summary = "Upload cover letter text")
+    public ResponseEntity<Application> uploadCover(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(applicationService.uploadCover(id, body.get("text")));
+    }
+
+    @DeleteMapping("/{id}/cover")
+    @Operation(summary = "Delete stored cover letter")
+    public ResponseEntity<Application> deleteCover(@PathVariable Long id) {
+        return ResponseEntity.ok(applicationService.deleteCover(id));
     }
 
     @GetMapping("/analytics")

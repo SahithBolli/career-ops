@@ -53,6 +53,14 @@ public class Application {
 
     private LocalDate lastActivityDate;
 
+    @Column(columnDefinition = "TEXT")
+    private String coverLetter;
+
+    @Column(columnDefinition = "TEXT")
+    private String resumeBase64;
+
+    private String resumeFileName;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 

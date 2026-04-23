@@ -64,6 +64,36 @@ public class ApplicationService {
         applicationRepository.deleteById(id);
     }
 
+    @Transactional
+    public Application uploadResume(Long id, String base64, String fileName) {
+        Application app = findById(id);
+        app.setResumeBase64(base64);
+        app.setResumeFileName(fileName);
+        return applicationRepository.save(app);
+    }
+
+    @Transactional
+    public Application deleteResume(Long id) {
+        Application app = findById(id);
+        app.setResumeBase64(null);
+        app.setResumeFileName(null);
+        return applicationRepository.save(app);
+    }
+
+    @Transactional
+    public Application uploadCover(Long id, String text) {
+        Application app = findById(id);
+        app.setCoverLetter(text);
+        return applicationRepository.save(app);
+    }
+
+    @Transactional
+    public Application deleteCover(Long id) {
+        Application app = findById(id);
+        app.setCoverLetter(null);
+        return applicationRepository.save(app);
+    }
+
     public AnalyticsResponse getAnalytics() {
         List<Application> all = applicationRepository.findAll();
         long total = all.size();

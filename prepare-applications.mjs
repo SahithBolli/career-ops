@@ -107,8 +107,19 @@ async function scoreJob(page, url) {
     const jdText = await page.evaluate(() => document.body.innerText.slice(0, 6000))
     const jdLower = jdText.toLowerCase()
 
+    // Hard filters — skip immediately without using API tokens
     if (/no sponsorship|not.*sponsor|cannot.*sponsor|us citizen.*only|only.*us citizen|must be.*citizen/i.test(jdText)) {
-      return { score: 1.0, skipReason: 'No sponsorship', url }
+      return { score: 1.0, skipReason: 'No sponsorship / citizens only', url }
+    }
+    if (/active.*clearance|security clearance|public trust|top secret|ts\/sci|secret clearance/i.test(jdText)) {
+      return { score: 1.0, skipReason: 'Requires security clearance', url }
+    }
+
+    // Location filter — must be US-based
+    const US_STATES = /\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming|remote|united states|usa|\b[A-Z]{2}\b)\b/i
+    const NON_US = /\b(india|canada|uk|united kingdom|germany|australia|singapore|europe|london|toronto|berlin|bangalore|mumbai|hyderabad|chennai|pune)\b/i
+    if (!US_STATES.test(jdText) || NON_US.test(jdText.slice(0, 500))) {
+      return { score: 1.0, skipReason: 'Not a US-based role', url }
     }
 
     const matched = MY_SKILLS.filter(s => jdLower.includes(s))
@@ -124,11 +135,12 @@ Rules:
 - Score 4.0-5.0 if 50%+ skills match
 - Score 3.0-3.9 if 30-49% match
 - Score < 3.0 if < 30% match
-- Score 1.0 if JD says no sponsorship/citizens only
+- Score 1.0 if JD says no sponsorship / citizens only / requires clearance / top secret / public trust
+- Score 1.0 if role is outside United States
 - Director/VP/Head/Executive → score 1.5
 - Lead/Manager/Staff OK if years required <= 6
 - Years required > 7 → score 1.5
-- Sponsorship not mentioned → assume OK
+- Sponsorship not mentioned → assume OK, apply
 
 Return ONLY JSON:
 {"score":4.2,"company":"Name","role":"Title","location":"City, ST","salaryRange":"$X-$Y","yearsRequired":5,"levelOk":true,"skillMatchPct":${pct},"matchedSkills":${JSON.stringify(matched.slice(0,8))},"skipReason":null,"tailorFocus":"what to emphasize","coverNote":"why great fit"}`,

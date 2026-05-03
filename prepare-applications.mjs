@@ -79,32 +79,55 @@ async function claude(prompt, maxTokens = 1500) {
 
 // ── Scan portals ──────────────────────────────────────────────────────────
 async function scanJobs() {
-  console.log('\n🔍 Scanning portals...')
+  console.log('\n🔍 Scanning portals for new jobs...')
   fs.mkdirSync('./data', { recursive: true })
-  if (!fs.existsSync('./data/pipeline.md'))     fs.writeFileSync('./data/pipeline.md', '')
+  if (!fs.existsSync('./data/pipeline.md'))      fs.writeFileSync('./data/pipeline.md', '')
   if (!fs.existsSync('./data/scan-history.tsv')) fs.writeFileSync('./data/scan-history.tsv', '')
 
+  // Run scan to add any brand new jobs
   try { execSync('node scan.mjs', { stdio: 'inherit' }) } catch {}
 
+  // Read ALL unchecked jobs from pipeline.md (not just new ones)
   const content = fs.readFileSync('./data/pipeline.md', 'utf8')
   const urls = []
   for (const line of content.split('\n')) {
-    const m = line.match(/https?:\/\/[^\s)]+/)
-    if (m) {
-      const url = m[0].replace(/[)>]+$/, '')
-      if (!alreadyDone.has(url)) urls.push(url)
+    // Only pick unchecked items (- [ ] lines)
+    if (!line.includes('- [ ]') && !line.includes('- [x]') && line.includes('http')) {
+      const m = line.match(/https?:\/\/[^\s)|]+/)
+      if (m) {
+        const url = m[0].replace(/[)>|]+$/, '')
+        if (!alreadyDone.has(url)) urls.push(url)
+      }
+    } else if (line.includes('- [ ]')) {
+      const m = line.match(/https?:\/\/[^\s)|]+/)
+      if (m) {
+        const url = m[0].replace(/[)>|]+$/, '')
+        if (!alreadyDone.has(url)) urls.push(url)
+      }
     }
   }
-  console.log(`   ${urls.length} new jobs to evaluate`)
-  return urls
+  const unique = [...new Set(urls)]
+  console.log(`   ${unique.length} jobs to evaluate (from pipeline.md)`)
+  return unique
 }
 
 // ── Score job ─────────────────────────────────────────────────────────────
 async function scoreJob(page, url) {
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 })
-    await page.waitForTimeout(1200)
-    const jdText = await page.evaluate(() => document.body.innerText.slice(0, 6000))
+    let jdText = ''
+    // Try Playwright first, fallback to plain fetch
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 })
+      await page.waitForTimeout(1000)
+      jdText = await page.evaluate(() => document.body.innerText.slice(0, 6000))
+    } catch {
+      try {
+        const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
+        const html = await r.text()
+        jdText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 6000)
+      } catch { return null }
+    }
+    if (!jdText || jdText.length < 100) return null
     const jdLower = jdText.toLowerCase()
 
     // Hard filters — skip immediately without using API tokens

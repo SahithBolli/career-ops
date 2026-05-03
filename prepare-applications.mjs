@@ -277,20 +277,23 @@ async function main() {
     idx++
     process.stdout.write(`\n[${idx}/${urls.length}] Scoring... `)
     const score = await scoreJob(page, url)
-    if (!score) { console.log('failed'); markDone(url); continue }
+    if (!score) { console.log('failed'); continue }
 
     console.log(`${score.score}/5 — ${score.company || '?'} | ${score.role || '?'}`)
 
     if (score.score < MIN_SCORE) {
       process.stdout.write(`   ⛔ Skip (${score.skipReason || 'low match'})\n`)
-      markDone(url)
+      // Only permanently skip hard-blocked jobs (clearance, non-US, no sponsorship)
+      if (score.skipReason && (score.skipReason.includes('clearance') || score.skipReason.includes('Non-US') || score.skipReason.includes('sponsorship'))) {
+        markDone(url)
+      }
       continue
     }
 
     console.log(`   ✅ Qualified! Generating materials...`)
     const files = await generateMaterials(score)
     allGeneratedFiles.push(...files)
-    markDone(url)
+    markDone(url) // only mark done after successful material generation
 
     // Save to HireTrack and upload files
     let appId = null

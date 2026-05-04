@@ -10,8 +10,16 @@ echo "  HireTrack Job Agent"
 echo "================================================"
 echo ""
 
-# Set API key — replace with your actual key
-export ANTHROPIC_API_KEY="your-anthropic-key-here"
+# Load API key from .env file (never commit .env to git)
+if [ -f ".env" ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+  echo "❌ Missing API key. Add this line to ~/career-ops/.env:"
+  echo "   ANTHROPIC_API_KEY=sk-ant-..."
+  exit 1
+fi
 
 echo "Choose what to do:"
 echo "  1) Prepare applications (scan + score + generate resume/cover letter)"

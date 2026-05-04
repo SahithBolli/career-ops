@@ -25,6 +25,7 @@ const ANTHROPIC_KEY      = process.env.ANTHROPIC_API_KEY || ''
 const MIN_SCORE          = 4.0
 const ALREADY_DONE_PATH  = './data/auto-applied.json'
 const RESULTS_PATH       = './data/ready-to-apply.md'
+const HIRETRACK_API      = process.env.HIRETRACK_API || 'https://career-ops-production-fbb0.up.railway.app/api'
 
 const profile = yaml.load(fs.readFileSync('./config/profile.yml', 'utf8'))
 const cvText  = fs.readFileSync('./cv.md', 'utf8')
@@ -59,6 +60,7 @@ async function ask(q) {
 }
 
 async function claude(prompt, maxTokens = 1500) {
+  const model = global._CLAUDE_MODEL || 'claude-haiku-4-5-20251001'
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -67,13 +69,15 @@ async function claude(prompt, maxTokens = 1500) {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model,
       max_tokens: maxTokens,
       messages: [{ role: 'user', content: prompt }],
     }),
   })
   const data = await res.json()
-  if (data.error) throw new Error(data.error.message)
+  if (data.error) throw new Error(`API error: ${data.error.message}`)
+  if (data.type === 'error') throw new Error(`API error type: ${JSON.stringify(data)}`)
+  if (!data.content || !data.content[0]) throw new Error(`No content in response: ${JSON.stringify(data).slice(0, 200)}`)
   return data.content[0].text
 }
 
@@ -111,22 +115,86 @@ async function scanJobs() {
   return unique
 }
 
+// ── JD cache (Ashby board per slug, avoids re-fetching) ────────────────────
+const _ashbyCache = {}
+
+// ── Fetch JD text via API (fast, reliable) or Playwright fallback ──────────
+async function fetchJdText(url) {
+  // Ashby: jobs.ashbyhq.com/{slug}/{id}
+  const ashbyMatch = url.match(/jobs\.ashbyhq\.com\/([^/]+)\/([0-9a-f-]{36})/i)
+  if (ashbyMatch) {
+    const [, slug, jobId] = ashbyMatch
+    try {
+      // Load & cache board
+      if (!_ashbyCache[slug]) {
+        const r = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${slug}?includeCompensation=true`, { signal: AbortSignal.timeout(10000) })
+        if (r.ok) _ashbyCache[slug] = (await r.json()).jobs || []
+      }
+      const jobs = _ashbyCache[slug] || []
+      const job = jobs.find(j => j.id === jobId || j.externalId === jobId || (j.jobUrl || '').includes(jobId))
+      if (job) {
+        const txt = [job.title, job.location, job.descriptionPlain || ''].join(' ')
+        return txt.replace(/\s+/g, ' ').slice(0, 6000)
+      }
+    } catch {}
+  }
+
+  // Greenhouse: job-boards.greenhouse.io/{slug}/jobs/{id}  OR  boards.greenhouse.io/{slug}/jobs/{id}
+  const ghMatch = url.match(/(?:job-boards(?:\.eu)?|boards)\.greenhouse\.io\/([^/]+)\/jobs\/(\d+)/)
+  if (ghMatch) {
+    try {
+      const r = await fetch(`https://boards-api.greenhouse.io/v1/boards/${ghMatch[1]}/jobs/${ghMatch[2]}`, { signal: AbortSignal.timeout(8000) })
+      if (r.ok) {
+        const d = await r.json()
+        const parts = [d.title, d.location?.name, d.content || ''].join(' ')
+        return parts
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+          .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 6000)
+      }
+    } catch {}
+  }
+
+  // Lever: jobs.lever.co/{slug}/{id}
+  const leverMatch = url.match(/jobs\.lever\.co\/([^/]+)\/([0-9a-f-]{36})/i)
+  if (leverMatch) {
+    try {
+      const r = await fetch(`https://api.lever.co/v0/postings/${leverMatch[1]}/${leverMatch[2]}`, { signal: AbortSignal.timeout(8000) })
+      if (r.ok) {
+        const d = await r.json()
+        const parts = [d.text, d.categories?.location, d.description || d.descriptionBody || '', (d.lists || []).map(l => l.content).join(' ')].join(' ')
+        return parts.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 6000)
+      }
+    } catch {}
+  }
+
+  // Playwright fallback for everything else (Indeed, custom sites, etc.)
+  return null  // caller will use Playwright
+}
+
 // ── Score job ─────────────────────────────────────────────────────────────
 async function scoreJob(page, url) {
   try {
     let jdText = ''
-    // Try Playwright first, fallback to plain fetch
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 })
-      await page.waitForTimeout(1000)
-      jdText = await page.evaluate(() => document.body.innerText.slice(0, 6000))
-    } catch {
+
+    // Try fast API fetch first (Ashby/Greenhouse/Lever)
+    jdText = await fetchJdText(url) || ''
+
+    // Playwright fallback if API didn't work
+    if (!jdText || jdText.length < 100) {
       try {
-        const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
-        const html = await r.text()
-        jdText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 6000)
-      } catch { return null }
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 18000 })
+        // Wait for actual content to render (SPA support)
+        await page.waitForFunction(() => document.body.innerText.trim().length > 200, { timeout: 6000 }).catch(() => {})
+        jdText = await page.evaluate(() => document.body.innerText.slice(0, 6000))
+      } catch {
+        try {
+          const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) })
+          const html = await r.text()
+          jdText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 6000)
+        } catch { return null }
+      }
     }
+
     if (!jdText || jdText.length < 100) return null
     const jdLower = jdText.toLowerCase()
 
@@ -172,7 +240,10 @@ Return ONLY JSON:
     const result = JSON.parse(resp.slice(s, e))
     if ((result.yearsRequired || 0) > 7) result.score = 1.5
     return { ...result, url, jdText }
-  } catch { return null }
+  } catch (err) {
+    process.stdout.write(`[ERR: ${err.message.slice(0, 80)}] `)
+    return null
+  }
 }
 
 // ── Generate resume + cover letter ────────────────────────────────────────
@@ -258,6 +329,39 @@ async function main() {
 
   if (!ANTHROPIC_KEY) {
     console.error('\n❌ Run: export ANTHROPIC_API_KEY=your-key\n')
+    process.exit(1)
+  }
+
+  // ── Validate API key + model at startup ──
+  console.log('\n🔑 Checking Anthropic API...')
+  try {
+    const testRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+    })
+    const testData = await testRes.json()
+    if (testData.error) {
+      // Try fallback model
+      const fallbackRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-3-5-haiku-20241022', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+      })
+      const fallbackData = await fallbackRes.json()
+      if (fallbackData.error) {
+        console.error(`\n❌ API error: ${testData.error.message}\n   Check your ANTHROPIC_API_KEY in start.sh\n`)
+        process.exit(1)
+      }
+      console.log('   ✓ API OK (using claude-3-5-haiku-20241022)')
+      // Patch the claude function to use fallback model
+      global._CLAUDE_MODEL = 'claude-3-5-haiku-20241022'
+    } else {
+      console.log('   ✓ API OK (using claude-haiku-4-5-20251001)')
+      global._CLAUDE_MODEL = 'claude-haiku-4-5-20251001'
+    }
+  } catch (e) {
+    console.error(`\n❌ Cannot reach Anthropic API: ${e.message}\n   Check your internet connection.\n`)
     process.exit(1)
   }
 

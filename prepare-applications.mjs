@@ -285,22 +285,22 @@ Max 280 words. No "I am writing to apply" opener.`, 600)
 Emphasize: ${score.tailorFocus}
 Highlight these skills: ${(score.matchedSkills || []).join(', ')}
 
-STRICT RULES — violations will cause harm to the candidate:
-- Keep EXACT HTML/CSS structure from the template
-- Include ALL sections: Summary, Certifications, Technical Skills, Experience, Education
-- Reorder bullets to put most relevant experience first
-- Do NOT add ANY skill, degree, or credential the candidate does not have
-- EDUCATION: candidate has EXACTLY ONE degree — MS in Computer Science, UNC Charlotte, GPA 3.6, Jan 2023–May 2024. Do NOT add any Bachelor's degree or any other degree. Do NOT invent any education.
-- Do NOT hallucinate any information not present in the CV DATA below
-- Return ONLY the raw HTML — no markdown, no code fences, no explanation
+STRICT RULES:
+- Use the EXACT HTML/CSS structure from the template — same sections, same order, same styling
+- Section order MUST be: Summary → Certifications → Technical Skills → Experience → Education
+- Include ALL 4 jobs: Honeywell, JELD-WEN, American Express, Teva — with ALL bullet points
+- EDUCATION: ONE degree only — MS Computer Science, UNC Charlotte, GPA 3.6, Jan 2023–May 2024. NO Bachelor's. NO invented degrees.
+- Do NOT add any skill, job, or credential not in the CV DATA
+- Do NOT truncate — write the COMPLETE HTML for all sections
+- Return ONLY raw HTML starting with <!DOCTYPE html> — no markdown, no code fences
 
-CV DATA (use ONLY this — do not invent anything not here):
+CV DATA (use ONLY this):
 ${cvText}
 
-TEMPLATE (keep this structure exactly):
+TEMPLATE:
 ${template.slice(0, 4000)}
 
-Return ONLY complete HTML starting with <!DOCTYPE html>`, 4000)
+Return the COMPLETE HTML. Do not stop early.`, 8000)
 
       // Strip markdown code fences if Claude wrapped the HTML
       html = html.replace(/^```[\w]*\n?/m, '').replace(/\n?```\s*$/m, '').trim()

@@ -285,15 +285,16 @@ Max 280 words. No "I am writing to apply" opener.`, 600)
 Emphasize: ${score.tailorFocus}
 Highlight these skills: ${(score.matchedSkills || []).join(', ')}
 
-Rules:
+STRICT RULES — violations will cause harm to the candidate:
 - Keep EXACT HTML/CSS structure from the template
-- Include ALL sections: Summary, Experience, Education, Skills, Certifications
+- Include ALL sections: Summary, Certifications, Technical Skills, Experience, Education
 - Reorder bullets to put most relevant experience first
-- Do NOT add skills candidate doesn't have
-- Quantify where possible
+- Do NOT add ANY skill, degree, or credential the candidate does not have
+- EDUCATION: candidate has EXACTLY ONE degree — MS in Computer Science, UNC Charlotte, GPA 3.6, Jan 2023–May 2024. Do NOT add any Bachelor's degree or any other degree. Do NOT invent any education.
+- Do NOT hallucinate any information not present in the CV DATA below
 - Return ONLY the raw HTML — no markdown, no code fences, no explanation
 
-CV DATA (full):
+CV DATA (use ONLY this — do not invent anything not here):
 ${cvText}
 
 TEMPLATE (keep this structure exactly):

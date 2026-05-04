@@ -280,20 +280,33 @@ Max 280 words. No "I am writing to apply" opener.`, 600)
   if (fs.existsSync(templatePath)) {
     try {
       const template = fs.readFileSync(templatePath, 'utf8')
-      const html = await claude(`Rewrite this resume HTML for: ${score.role} at ${score.company}.
+      let html = await claude(`Rewrite this resume HTML for: ${score.role} at ${score.company}.
 
 Emphasize: ${score.tailorFocus}
 Highlight these skills: ${(score.matchedSkills || []).join(', ')}
 
-Rules: Keep EXACT HTML/CSS structure. Reorder bullets to put most relevant experience first. Do NOT add skills candidate doesn't have. Quantify where possible.
+Rules:
+- Keep EXACT HTML/CSS structure from the template
+- Include ALL sections: Summary, Experience, Education, Skills, Certifications
+- Reorder bullets to put most relevant experience first
+- Do NOT add skills candidate doesn't have
+- Quantify where possible
+- Return ONLY the raw HTML — no markdown, no code fences, no explanation
 
-CV DATA:
-${cvText.slice(0, 2500)}
+CV DATA (full):
+${cvText}
 
 TEMPLATE (keep this structure exactly):
-${template.slice(0, 3500)}
+${template.slice(0, 4000)}
 
-Return ONLY complete HTML.`, 4000)
+Return ONLY complete HTML starting with <!DOCTYPE html>`, 4000)
+
+      // Strip markdown code fences if Claude wrapped the HTML
+      html = html.replace(/^```[\w]*\n?/m, '').replace(/\n?```\s*$/m, '').trim()
+      if (!html.startsWith('<!') && !html.startsWith('<html')) {
+        const start = html.indexOf('<!DOCTYPE') !== -1 ? html.indexOf('<!DOCTYPE') : html.indexOf('<html')
+        if (start > -1) html = html.slice(start)
+      }
 
       const htmlPath = `./output/${slug}.html`
       const pdfPath  = `./output/${slug}.pdf`

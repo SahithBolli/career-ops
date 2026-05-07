@@ -228,7 +228,7 @@ Rules:
 - Clearance/public trust/top secret → score 1.0
 - Director/VP/Head/Executive → score 1.5
 - Lead/Manager/Staff OK if years required <= 6
-- Years required > 7 → score 1.5
+- Years required > 6 → score 1.5
 - Sponsorship not mentioned → assume OK, apply
 
 Return ONLY JSON:
@@ -238,7 +238,7 @@ Return ONLY JSON:
     const s = resp.indexOf('{'), e = resp.lastIndexOf('}') + 1
     if (s < 0) return null
     const result = JSON.parse(resp.slice(s, e))
-    if ((result.yearsRequired || 0) > 7) result.score = 1.5
+    if ((result.yearsRequired || 0) > 6) result.score = 1.5
     return { ...result, url, jdText }
   } catch (err) {
     process.stdout.write(`[ERR: ${err.message.slice(0, 80)}] `)
@@ -248,7 +248,7 @@ Return ONLY JSON:
 
 // ── Generate resume + cover letter ────────────────────────────────────────
 async function generateMaterials(score) {
-  const slug = `${score.company}-${score.role}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)
+  const slug = `sahith-${score.company}-${score.role}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50)
   const generatedFiles = []
 
   // Cover letter

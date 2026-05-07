@@ -81,6 +81,7 @@ function parseGreenhouse(json, companyName) {
     url: j.absolute_url || '',
     company: companyName,
     location: j.location?.name || '',
+    postedAt: j.updated_at ? new Date(j.updated_at) : null,
   }));
 }
 
@@ -91,6 +92,7 @@ function parseAshby(json, companyName) {
     url: j.jobUrl || '',
     company: companyName,
     location: j.location || '',
+    postedAt: j.publishedAt ? new Date(j.publishedAt) : null,
   }));
 }
 
@@ -101,6 +103,7 @@ function parseLever(json, companyName) {
     url: j.hostedUrl || '',
     company: companyName,
     location: j.categories?.location || '',
+    postedAt: j.createdAt ? new Date(j.createdAt) : null,
   }));
 }
 
@@ -289,6 +292,10 @@ async function main() {
   const newOffers = [];
   const errors = [];
 
+  const MAX_AGE_HOURS = 48;
+  const cutoff = new Date(Date.now() - MAX_AGE_HOURS * 60 * 60 * 1000);
+  let totalTooOld = 0;
+
   const tasks = targets.map(company => async () => {
     const { type, url } = company._api;
     try {
@@ -297,6 +304,11 @@ async function main() {
       totalFound += jobs.length;
 
       for (const job of jobs) {
+        // Skip jobs older than 48 hours
+        if (job.postedAt && job.postedAt < cutoff) {
+          totalTooOld++;
+          continue;
+        }
         if (!titleFilter(job.title)) {
           totalFiltered++;
           continue;
@@ -334,6 +346,7 @@ async function main() {
   console.log(`${'━'.repeat(45)}`);
   console.log(`Companies scanned:     ${targets.length}`);
   console.log(`Total jobs found:      ${totalFound}`);
+  console.log(`Too old (>48hrs):      ${totalTooOld} removed`);
   console.log(`Filtered by title:     ${totalFiltered} removed`);
   console.log(`Duplicates:            ${totalDupes} skipped`);
   console.log(`New offers added:      ${newOffers.length}`);

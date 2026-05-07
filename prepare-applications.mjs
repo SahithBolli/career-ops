@@ -236,7 +236,7 @@ async function scoreJob(page, url) {
     }
 
     // Location filter — skip only if EXPLICITLY a non-US role
-    const NON_US = /\b(india|canada|united kingdom|germany|australia|singapore|london|toronto|berlin|bangalore|mumbai|hyderabad|chennai|pune|amsterdam|paris|sydney)\b/i
+    const NON_US = /\b(india|canada|united kingdom|germany|australia|singapore|london|toronto|berlin|bangalore|mumbai|hyderabad|chennai|pune|amsterdam|paris|sydney|brazil|brasil|são paulo|sao paulo|rio de janeiro|mexico|méxico|argentina|colombia|chile|peru|bogotá|bogota|lima|santiago|buenos aires|ireland|dublin|netherlands|spain|madrid|barcelona|italy|milan|rome|sweden|stockholm|poland|warsaw|japan|tokyo|china|beijing|shanghai|korea|seoul|taiwan|taipei|new zealand|auckland|south africa|johannesburg)\b/i
     if (NON_US.test(jdText.slice(0, 800))) {
       return { score: 1.0, skipReason: 'Non-US location', url }
     }

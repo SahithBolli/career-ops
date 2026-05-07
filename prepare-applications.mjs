@@ -139,6 +139,35 @@ async function fetchJdText(url) {
     } catch {}
   }
 
+  // Custom Greenhouse career pages with ?gh_jid= (e.g. pinterestcareers.com?gh_jid=123)
+  // Load portals.yml to map domain → board slug
+  const ghJidMatch = url.match(/[?&]gh_jid=(\d+)/)
+  if (ghJidMatch) {
+    try {
+      const portalsYaml = (await import('fs')).readFileSync('portals.yml', 'utf-8')
+      const portalsConfig = (await import('js-yaml')).default.load(portalsYaml)
+      const jobId = ghJidMatch[1]
+      const urlHost = new URL(url).hostname.replace(/^www\./, '')
+      for (const co of (portalsConfig.tracked_companies || [])) {
+        const apiUrl = co.api || ''
+        const slugMatch = apiUrl.match(/\/boards\/([^/]+)\/jobs/)
+        if (!slugMatch) continue
+        const careersHost = co.careers_url ? new URL(co.careers_url).hostname.replace(/^www\./, '') : ''
+        if (careersHost && urlHost.includes(careersHost.split('.')[0])) {
+          const slug = slugMatch[1]
+          const r = await fetch(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs/${jobId}`, { signal: AbortSignal.timeout(8000) })
+          if (r.ok) {
+            const d = await r.json()
+            const parts = [d.title, d.location?.name, d.content || ''].join(' ')
+            return parts
+              .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+              .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 6000)
+          }
+        }
+      }
+    } catch {}
+  }
+
   // Greenhouse: job-boards.greenhouse.io/{slug}/jobs/{id}  OR  boards.greenhouse.io/{slug}/jobs/{id}
   const ghMatch = url.match(/(?:job-boards(?:\.eu)?|boards)\.greenhouse\.io\/([^/]+)\/jobs\/(\d+)/)
   if (ghMatch) {
@@ -405,6 +434,13 @@ async function main() {
       if (score.skipReason && (score.skipReason.includes('clearance') || score.skipReason.includes('Non-US') || score.skipReason.includes('sponsorship'))) {
         markDone(url)
       }
+      continue
+    }
+
+    // Skip jobs where company/role couldn't be identified (empty JD fetched)
+    if (!score.company || score.company.toLowerCase() === 'unknown' ||
+        !score.role || score.role.toLowerCase() === 'unknown') {
+      process.stdout.write(`   ⚠️  Skip (company/role unknown — JD fetch failed)\n`)
       continue
     }
 

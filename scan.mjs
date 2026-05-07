@@ -74,11 +74,16 @@ function detectApi(company) {
 
 // ── API parsers ─────────────────────────────────────────────────────
 
-function parseGreenhouse(json, companyName) {
+function parseGreenhouse(json, companyName, boardSlug) {
   const jobs = json.jobs || [];
   return jobs.map(j => ({
     title: j.title || '',
-    url: j.absolute_url || '',
+    // Use standard boards URL so fetchJdText() can parse it via API.
+    // Custom career pages (e.g. pinterestcareers.com?gh_jid=...) return
+    // empty SPA content and cause company/role to show as "Unknown".
+    url: boardSlug && j.id
+      ? `https://boards.greenhouse.io/${boardSlug}/jobs/${j.id}`
+      : (j.absolute_url || ''),
     company: companyName,
     location: j.location?.name || '',
     postedAt: j.updated_at ? new Date(j.updated_at) : null,
@@ -300,7 +305,11 @@ async function main() {
     const { type, url } = company._api;
     try {
       const json = await fetchJson(url);
-      const jobs = PARSERS[type](json, company.name);
+      // Extract board slug for Greenhouse so jobs get standard URLs
+      const boardSlug = type === 'greenhouse'
+        ? (url.match(/\/boards\/([^/]+)\/jobs/)?.[1] || null)
+        : null;
+      const jobs = PARSERS[type](json, company.name, boardSlug);
       totalFound += jobs.length;
 
       for (const job of jobs) {

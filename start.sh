@@ -15,9 +15,10 @@ if [ -f ".env" ]; then
   export $(grep -v '^#' .env | xargs)
 fi
 
-if [ -z "$ANTHROPIC_API_KEY" ]; then
+if [ -z "$GEMINI_API_KEY" ]; then
   echo "❌ Missing API key. Add this line to ~/career-ops/.env:"
-  echo "   ANTHROPIC_API_KEY=sk-ant-..."
+  echo "   GEMINI_API_KEY=your-key-here"
+  echo "   Get a free key at: https://aistudio.google.com/app/apikey"
   exit 1
 fi
 

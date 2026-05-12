@@ -21,7 +21,7 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const ANTHROPIC_KEY      = process.env.ANTHROPIC_API_KEY || ''
+const GEMINI_KEY         = process.env.GEMINI_API_KEY || ''
 const MIN_SCORE          = 4.0
 const ALREADY_DONE_PATH  = './data/auto-applied.json'
 const RESULTS_PATH       = './data/ready-to-apply.md'
@@ -60,25 +60,21 @@ async function ask(q) {
 }
 
 async function claude(prompt, maxTokens = 1500) {
-  const model = global._CLAUDE_MODEL || 'claude-haiku-4-5-20251001'
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const model = 'gemini-2.0-flash'
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }],
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: maxTokens },
     }),
   })
   const data = await res.json()
   if (data.error) throw new Error(`API error: ${data.error.message}`)
-  if (data.type === 'error') throw new Error(`API error type: ${JSON.stringify(data)}`)
-  if (!data.content || !data.content[0]) throw new Error(`No content in response: ${JSON.stringify(data).slice(0, 200)}`)
-  return data.content[0].text
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) throw new Error(`No content in response: ${JSON.stringify(data).slice(0, 200)}`)
+  return text
 }
 
 // ── Scan portals ──────────────────────────────────────────────────────────
@@ -370,41 +366,30 @@ async function main() {
   console.log('🤖 HireTrack — Prepare Applications')
   console.log('═'.repeat(58))
 
-  if (!ANTHROPIC_KEY) {
-    console.error('\n❌ Run: export ANTHROPIC_API_KEY=your-key\n')
+  if (!GEMINI_KEY) {
+    console.error('\n❌ Missing Gemini API key. Add this to ~/career-ops/.env:\n   GEMINI_API_KEY=your-key-here\n   Get a free key at: https://aistudio.google.com/app/apikey\n')
     process.exit(1)
   }
 
-  // ── Validate API key + model at startup ──
-  console.log('\n🔑 Checking Anthropic API...')
+  // ── Validate Gemini API key at startup ──
+  console.log('\n🔑 Checking Gemini API...')
   try {
-    const testRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
-    })
+    const testRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: 'hi' }] }], generationConfig: { maxOutputTokens: 5 } }),
+      }
+    )
     const testData = await testRes.json()
     if (testData.error) {
-      // Try fallback model
-      const fallbackRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-3-5-haiku-20241022', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
-      })
-      const fallbackData = await fallbackRes.json()
-      if (fallbackData.error) {
-        console.error(`\n❌ API error: ${testData.error.message}\n   Check your ANTHROPIC_API_KEY in start.sh\n`)
-        process.exit(1)
-      }
-      console.log('   ✓ API OK (using claude-3-5-haiku-20241022)')
-      // Patch the claude function to use fallback model
-      global._CLAUDE_MODEL = 'claude-3-5-haiku-20241022'
-    } else {
-      console.log('   ✓ API OK (using claude-haiku-4-5-20251001)')
-      global._CLAUDE_MODEL = 'claude-haiku-4-5-20251001'
+      console.error(`\n❌ Gemini API error: ${testData.error.message}\n   Check your GEMINI_API_KEY in .env\n`)
+      process.exit(1)
     }
+    console.log('   ✓ Gemini API OK (gemini-2.0-flash)')
   } catch (e) {
-    console.error(`\n❌ Cannot reach Anthropic API: ${e.message}\n   Check your internet connection.\n`)
+    console.error(`\n❌ Cannot reach Gemini API: ${e.message}\n   Check your internet connection.\n`)
     process.exit(1)
   }
 
